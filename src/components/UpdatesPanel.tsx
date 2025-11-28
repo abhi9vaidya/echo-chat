@@ -83,11 +83,11 @@ export default function UpdatesPanel({ pendingInvitations, onInvitationResponse 
         const isProcessing = processingInvites.has(inviteId);
 
         return (
-          <Card key={inviteId} className="border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-800">
+          <Card key={inviteId} className="border-accent bg-accent/10">
             <CardContent className="pt-4">
               <div className="flex items-start gap-3 mb-3">
                 <Avatar className="h-8 w-8 shrink-0">
-                  <AvatarFallback className="bg-blue-500 text-white text-xs">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-xs">
                     {getInitials(invite.inviterName)}
                   </AvatarFallback>
                 </Avatar>
@@ -98,7 +98,7 @@ export default function UpdatesPanel({ pendingInvitations, onInvitationResponse 
                   <p className="text-xs text-muted-foreground">
                     invited you to join
                   </p>
-                  <Badge className="mt-1 bg-blue-600 hover:bg-blue-700 text-white text-xs">
+                  <Badge className="mt-1 bg-primary hover:bg-primary/90 text-primary-foreground text-xs">
                     {invite.conversationName}
                   </Badge>
                 </div>
@@ -117,7 +117,7 @@ export default function UpdatesPanel({ pendingInvitations, onInvitationResponse 
                 <Button
                   size="sm"
                   variant="outline"
-                  className="flex-1 text-red-600 border-red-200 hover:bg-red-50 gap-1"
+                  className="flex-1 text-destructive border-destructive hover:bg-destructive/10 gap-1"
                   onClick={() => handleDeclineInvite(inviteId)}
                   disabled={isProcessing}
                 >

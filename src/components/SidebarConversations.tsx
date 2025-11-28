@@ -82,12 +82,12 @@ export const SidebarConversations = ({
       {/* Updates/Invitations Section */}
       {pendingInvitations.length > 0 && (
         <div className="border-b border-border">
-          <div className="px-4 py-2 flex items-center gap-2 bg-blue-50 dark:bg-blue-950">
-            <Badge className="bg-blue-600 text-white">{pendingInvitations.length}</Badge>
-            <span className="text-sm font-semibold text-blue-900 dark:text-blue-100">New Invitations</span>
+          <div className="px-4 py-2 flex items-center gap-2 bg-accent">
+            <Badge className="bg-primary text-primary-foreground">{pendingInvitations.length}</Badge>
+            <span className="text-sm font-semibold text-accent-foreground">New Invitations</span>
           </div>
-          <UpdatesPanel 
-            pendingInvitations={pendingInvitations} 
+          <UpdatesPanel
+            pendingInvitations={pendingInvitations}
             onInvitationResponse={onInvitationResponse}
           />
         </div>
@@ -97,15 +97,15 @@ export const SidebarConversations = ({
       <div className="flex-1 overflow-y-auto">
         {conversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-100 to-purple-100 mb-4">
-              <MessageSquare className="h-8 w-8 text-gray-400" />
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted mb-4">
+              <MessageSquare className="h-8 w-8 text-muted-foreground" />
             </div>
-            <h3 className="text-sm font-medium text-gray-900 mb-1">No conversations yet</h3>
-            <p className="text-xs text-gray-500 mb-4">Start a new chat to get started</p>
+            <h3 className="text-sm font-medium text-foreground mb-1">No conversations yet</h3>
+            <p className="text-xs text-muted-foreground mb-4">Start a new chat to get started</p>
             <Button
               onClick={onNewChat}
               size="sm"
-              className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-lg"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg"
             >
               <Plus className="h-4 w-4 mr-2" />
               New Chat
@@ -116,8 +116,8 @@ export const SidebarConversations = ({
             <div
               key={conv.id}
               className={cn(
-                "group relative border-b border-gray-100 transition-all duration-200 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50",
-                currentConversationId === conv.id && "bg-gradient-to-r from-blue-100 to-purple-100 border-blue-200"
+                "group relative border-b border-border transition-all duration-200 hover:bg-accent/50",
+                currentConversationId === conv.id && "bg-accent border-primary/20"
               )}
             >
               <button
@@ -133,16 +133,16 @@ export const SidebarConversations = ({
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className={cn(
                           "truncate font-medium transition-colors",
-                          currentConversationId === conv.id ? "text-blue-900" : "text-gray-900"
+                          currentConversationId === conv.id ? "text-foreground" : "text-muted-foreground"
                         )}>
                           {conv.title}
                         </h3>
                         {conv.isOnline && (
-                          <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
+                          <span className="h-2 w-2 rounded-full bg-success animate-pulse flex-shrink-0" />
                         )}
                       </div>
                       {conv.lastMessage && (
-                        <p className="truncate text-sm text-gray-600">
+                        <p className="truncate text-sm text-muted-foreground">
                           {conv.lastMessage}
                         </p>
                       )}
@@ -150,12 +150,12 @@ export const SidebarConversations = ({
                   </div>
                   <div className="flex flex-col items-end gap-1 flex-shrink-0">
                     {conv.lastMessageTime && (
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-muted-foreground">
                         {conv.lastMessageTime}
                       </span>
                     )}
                     {conv.unreadCount > 0 && (
-                      <Badge className="h-5 min-w-[20px] px-1.5 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs font-medium rounded-full">
+                      <Badge className="h-5 min-w-[20px] px-1.5 bg-primary text-primary-foreground text-xs font-medium rounded-full">
                         {conv.unreadCount}
                       </Badge>
                     )}
@@ -168,7 +168,7 @@ export const SidebarConversations = ({
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-red-100 hover:text-red-600 rounded-lg"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-destructive/10 hover:text-destructive rounded-lg"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -185,7 +185,7 @@ export const SidebarConversations = ({
                       <AlertDialogCancel className="rounded-lg">Cancel</AlertDialogCancel>
                       <AlertDialogAction
                         onClick={() => onDeleteConversation(conv.id)}
-                        className="bg-red-600 hover:bg-red-700 rounded-lg"
+                        className="bg-destructive hover:bg-destructive/90 rounded-lg"
                       >
                         Delete
                       </AlertDialogAction>

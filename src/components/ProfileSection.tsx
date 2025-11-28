@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, Settings, User as UserIcon, Mail } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -157,15 +158,13 @@ export const ProfileSection = ({ user, onLogout, pendingInvitationCount = 0 }: P
                   )}
                 </div>
 
-                {/* Settings Button */}
-                <Button
-                  variant="outline"
-                  className="w-full justify-center gap-2"
-                  disabled
-                >
-                  <Settings className="h-4 w-4" />
-                  Settings (Coming Soon)
-                </Button>
+                {/* Theme Toggle */}
+                <div className="flex items-center justify-between pt-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Theme
+                  </label>
+                  <ThemeToggle />
+                </div>
               </div>
             </DialogContent>
           </Dialog>

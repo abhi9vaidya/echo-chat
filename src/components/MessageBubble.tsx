@@ -72,8 +72,8 @@ const MessageBubble = ({ message, currentUserId }: MessageBubbleProps) => {
         <div
           className={`px-4 py-2 rounded-2xl break-words ${
             isMine
-              ? "bg-blue-600 text-white self-end"
-              : "bg-white text-gray-900 border border-gray-200 self-start"
+              ? "bg-primary text-primary-foreground self-end"
+              : "bg-background text-foreground border border-border self-start"
           }`}
         >
           <div className="text-sm">{message?.content ?? ""}</div>

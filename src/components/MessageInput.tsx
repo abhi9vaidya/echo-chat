@@ -58,7 +58,7 @@ export const MessageInput = ({
   }, []);
 
   return (
-    <form onSubmit={handleSubmit} className="border-t border-gray-200 bg-white/80 backdrop-blur-sm p-4 shadow-lg">
+    <form onSubmit={handleSubmit} className="border-t border-border bg-card/80 backdrop-blur-sm p-4 shadow-lg">
       <div className="flex items-end gap-3">
         <div className="flex-1 relative">
           <Input
@@ -67,7 +67,7 @@ export const MessageInput = ({
             onKeyDown={handleKeyDown}
             placeholder="Type a message..."
             disabled={disabled}
-            className="pr-12 h-11 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20 rounded-xl bg-gray-50/50 backdrop-blur-sm"
+            className="pr-12 h-11 rounded-xl backdrop-blur-sm"
           />
 
         </div>
