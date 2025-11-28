@@ -4,9 +4,11 @@ import { SidebarConversations } from "@/components/SidebarConversations";
 import { ChatWindow } from "@/components/ChatWindow";
 import { OnlineUsersPanel } from "@/components/OnlineUsersPanel";
 import NewChatModal from "@/components/NewChatModal";
+import InvitationModal from "@/components/InvitationModal";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { User, Conversation } from "@/types";
-import { login, signup, getConversations, getMessages, sendMessage as apiSendMessage, deleteConversation } from "@/services/api";
-import { connectToChat, disconnectSocket, joinConversation, sendSocketMessage, onNewMessage, offNewMessage, sendTyping, onTyping, offTyping, requestOnlineUsers, registerMe, onOnlineUsers, offOnlineUsers, onUserConnected, offUserConnected, onUserDisconnected, offUserDisconnected } from "@/services/socket";
+import { login, signup, getConversations, getMessages, sendMessage as apiSendMessage, deleteConversation, getPendingInvitations } from "@/services/api";
+import { socketService } from "@/services/socket";
 import MessageBubble from "@/components/MessageBubble";
 import { useToast } from "@/hooks/use-toast";
 
@@ -22,6 +24,9 @@ const Index = () => {
   const [showSidebar, setShowSidebar] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
+  const [pendingInvitation, setPendingInvitation] = useState<any | null>(null);
+  const [showInvitationModal, setShowInvitationModal] = useState(false);
+  const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
   const { toast } = useToast();
 
   const token = localStorage.getItem("echo_access_token");
@@ -37,21 +42,15 @@ const Index = () => {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // connect socket once after login
+  // Register all socket listeners ONCE on component mount (FIRST - before socket init)
   useEffect(() => {
-    if (!token) return;
-    connectToChat(token);
-    // cleanup on unmount
-    return () => disconnectSocket();
-  }, [token]);
-
-  // register new_message handler once
-  useEffect(() => {
-    const handler = (msg: any) => {
+    console.log("[SOCKET] Registering all callbacks...");
+    
+    // Message handler
+    const msgHandler = (msg: any) => {
+      console.log("[SOCKET] Message received:", msg);
       setMessages((prev) => {
-        // dedupe by _id or id
         if (prev.find((m) => String(m._id || m.id) === String(msg._id || msg.id))) return prev;
-        // remove matching optimistic msg if present (by content+senderId)
         const cleaned = prev.filter(
           (m) =>
             !(
@@ -63,7 +62,6 @@ const Index = () => {
         return [...cleaned, msg];
       });
 
-      // Update message count for the conversation
       setConversations((prev) =>
         prev.map((conv) =>
           conv.id === msg.conversationId
@@ -73,13 +71,9 @@ const Index = () => {
       );
     };
 
-    onNewMessage(handler);
-    return () => offNewMessage(handler);
-  }, []);
-
-  // register typing handlers
-  useEffect(() => {
-    const handleUserTyping = (data: { userId: string; conversationId: string }) => {
+    // Typing handler
+    const typingHandler = (data: { userId: string; conversationId: string }) => {
+      console.log("[SOCKET] Typing received:", data);
       if (data.conversationId === selectedConversation) {
         const userName = onlineUsers.find(u => u.id === data.userId)?.name || `User ${data.userId}`;
         setTypingUsers(prev => {
@@ -88,31 +82,77 @@ const Index = () => {
           }
           return prev;
         });
-        // Clear typing indicator after 3 seconds
         setTimeout(() => {
           setTypingUsers(prev => prev.filter(name => name !== userName));
         }, 3000);
       }
     };
 
-    onTyping(handleUserTyping);
-    return () => offTyping(handleUserTyping);
-  }, [selectedConversation, onlineUsers]);
+    // Group invite handler
+    const inviteHandler = (invite: any) => {
+      console.log("[SOCKET] Invite handler called with:", invite);
+      setPendingInvitations(prev => [...prev, invite]);
+      setPendingInvitation(invite);
+      setShowInvitationModal(true);
+      toast({
+        title: "You've been invited!",
+        description: `${invite.inviterName} invited you to join a group.`,
+      });
+    };
+
+    // Notification handler
+    const notificationHandler = (notification: any) => {
+      console.log("[SOCKET] Notification received:", notification);
+      if (notification.type === "invitation_accepted") {
+        toast({
+          title: "Invitation accepted",
+          description: `${notification.userName} accepted your invitation to join the group.`,
+        });
+      } else if (notification.type === "invitation_declined") {
+        toast({
+          title: "Invitation declined",
+          description: `${notification.userName} declined your invitation.`,
+        });
+      } else {
+        toast({
+          title: "Notification",
+          description: notification.message || "You have a new notification",
+        });
+      }
+    };
+
+    // Register all callbacks FIRST
+    console.log("[SOCKET] Calling socketService.onMessage...");
+    socketService.onMessage(msgHandler);
+    console.log("[SOCKET] Calling socketService.onTyping...");
+    socketService.onTyping(typingHandler);
+    console.log("[SOCKET] Calling socketService.onGroupInvite...");
+    socketService.onGroupInvite(inviteHandler);
+    console.log("[SOCKET] Calling socketService.onNotification...");
+    socketService.onNotification(notificationHandler);
+    console.log("[SOCKET] All callbacks registered");
+
+  }, [toast]);
+
+  // Initialize socket globally once after login (SECOND - after callbacks are registered)
+  useEffect(() => {
+    if (!token || !currentUser) return;
+    socketService.init(token, { id: currentUser.id, name: currentUser.name, email: currentUser.email });
+    // cleanup on unmount
+    return () => socketService.disconnect();
+  }, [token, currentUser]);
+
+  // Join specific conversation when selected
+  useEffect(() => {
+    if (!token || !selectedConversation || !currentUser) return;
+    socketService.connectToChat(selectedConversation, token, { id: currentUser.id, name: currentUser.name, email: currentUser.email });
+  }, [token, selectedConversation, currentUser]);
 
   // Real-time presence for online users
   useEffect(() => {
     if (!token || !currentUser) return;
 
-    // register this client/user with the socket server
-    try {
-      registerMe({ id: currentUser.id, name: currentUser.name, email: currentUser.email });
-    } catch (err) {
-      console.warn("registerMe failed", err);
-    }
-
-    // handler functions
     const handleOnlineUsers = (users: any[]) => {
-      // server now sends array of { userId, name, email, online }
       const userDetails = users.map((u) => ({
         id: u.userId,
         name: u.name || `User ${u.userId}`,
@@ -129,7 +169,6 @@ const Index = () => {
         if (exists) {
           return prev.map((u) => (String(u.id) === String(userId) ? { ...u, name: user.name || u.name, email: user.email || u.email, isOnline: true } : u));
         }
-        // Add new user with real info
         return [...prev, { id: userId, name: user.name || `User ${userId}`, email: user.email || `${userId}@echo.chat`, isOnline: true }];
       });
     };
@@ -138,20 +177,10 @@ const Index = () => {
       setOnlineUsers((prev) => prev.map((u) => (String(u.id) === String(user.userId) ? { ...u, isOnline: false } : u)));
     };
 
-    // subscribe
-    onOnlineUsers(handleOnlineUsers);
-    onUserConnected(handleUserConnected);
-    onUserDisconnected(handleUserDisconnected);
+    socketService.onOnlineUsers(handleOnlineUsers);
+    socketService.onUserConnected(handleUserConnected);
+    socketService.onUserDisconnected(handleUserDisconnected);
 
-    // request an initial list in case server expects that
-    requestOnlineUsers();
-
-    // cleanup
-    return () => {
-      offOnlineUsers(handleOnlineUsers);
-      offUserConnected(handleUserConnected);
-      offUserDisconnected(handleUserDisconnected);
-    };
   }, [token, currentUser]);
 
   // Load user from localStorage on startup
@@ -184,7 +213,7 @@ const Index = () => {
     if (joinedConvId === selectedConversation) return;
 
     try {
-      joinConversation(selectedConversation);
+      socketService.joinConversation(selectedConversation);
       setJoinedConvId(selectedConversation);
     } catch (err) {
       console.warn("joinConversation failed", err);
@@ -203,6 +232,20 @@ const Index = () => {
         title: "Welcome to Echo! 🎉",
         description: isSignup ? "Your account has been created." : "You've successfully logged in.",
       });
+
+      // Fetch pending invitations for offline recovery
+      try {
+        const pendingInvites = await getPendingInvitations();
+        setPendingInvitations(pendingInvites || []);
+        if (pendingInvites && pendingInvites.length > 0) {
+          // Show the first pending invitation
+          const firstInvite = pendingInvites[0];
+          setPendingInvitation(firstInvite);
+          setShowInvitationModal(true);
+        }
+      } catch (err) {
+        console.warn("Failed to fetch pending invitations:", err);
+      }
     } catch (error: any) {
       throw error;
     }
@@ -257,18 +300,18 @@ const Index = () => {
     // Add optimistic message immediately
     setMessages((prev) => [...prev, optimisticMessage]);
 
-    // Update conversation's last message and message count
+    // Update conversation's last message only (don't increment count - socket handler will do it)
     setConversations((prev) =>
       prev.map((conv) =>
         conv.id === selectedConversation
-          ? { ...conv, lastMessage: content, lastMessageTime: "Just now", messageCount: (conv.messageCount || 0) + 1 }
+          ? { ...conv, lastMessage: content, lastMessageTime: "Just now" }
           : conv
       )
     );
 
     try {
       // Send through WebSocket for real-time delivery
-      sendSocketMessage(selectedConversation, content);
+      socketService.sendMessage({ conversationId: selectedConversation, senderId: currentUser.id, senderName: currentUser.name, content, id: optimisticMessage._id, timestamp: optimisticMessage.timestamp });
     } catch (error: any) {
       // Remove optimistic message on failure
       setMessages((prev) => prev.filter((m) => m._id !== optimisticMessage._id));
@@ -283,7 +326,7 @@ const Index = () => {
   const handleTyping = () => {
     if (selectedConversation) {
       // Backend integration point: Send typing indicator through WebSocket
-      sendTyping(selectedConversation);
+      socketService.sendTyping(selectedConversation);
     }
   };
 
@@ -292,34 +335,41 @@ const Index = () => {
   };
 
   const handleCreated = async (conv: any) => {
-    // normalize id
-    const id = conv.id || conv._id;
-    const formatted = {
-      id,
-      title: conv.title || "New Chat",
-      participants: conv.participants || (currentUser ? [currentUser] : []),
-      isOnline: !!conv.isOnline,
-      lastMessage: conv.lastMessage || "",
-      lastMessageTime: conv.lastMessageTime || "",
-      createdAt: conv.createdAt || new Date().toISOString(),
-      messageCount: conv.messageCount || 0,
-      ...conv,
-    };
+    // Refresh the entire conversations list from server to ensure consistency
+    try {
+      await loadConversations();
+    } catch (error) {
+      console.error("Failed to refresh conversations after creation:", error);
+      // Fallback: manually add the conversation if refresh fails
+      const id = conv.id || conv._id;
+      const formatted = {
+        id,
+        title: conv.title || "New Chat",
+        participants: conv.participants || (currentUser ? [currentUser] : []),
+        isOnline: !!conv.isOnline,
+        lastMessage: conv.lastMessage || "",
+        lastMessageTime: conv.lastMessageTime || "",
+        createdAt: conv.createdAt || new Date().toISOString(),
+        messageCount: conv.messageCount || 0,
+        ...conv,
+      };
 
-    // add to top of conversations list
-    setConversations((prev) => {
-      // avoid duplicates
-      const exists = prev.find((c) => String(c.id) === String(id));
-      if (exists) return prev.map((c) => (String(c.id) === String(id) ? formatted : c));
-      return [formatted, ...prev];
-    });
+      setConversations((prev) => {
+        const exists = prev.find((c) => String(c.id) === String(id));
+        if (exists) return prev.map((c) => (String(c.id) === String(id) ? formatted : c));
+        return [formatted, ...prev];
+      });
+    }
+
+    // normalize id for selecting the conversation
+    const id = conv.id || conv._id;
 
     // auto-open the newly created conversation
-    setSelectedConversation(formatted.id);
+    setSelectedConversation(id);
 
     // attempt to load messages (best-effort)
     try {
-      const msgs = await getMessages(formatted.id);
+      const msgs = await getMessages(id);
       setMessages(msgs);
     } catch (error: any) {
       console.error("Failed to load messages for new conversation:", error);
@@ -360,6 +410,20 @@ const Index = () => {
     window.location.reload();
   };
 
+  const handleInvitationAccepted = async (invitationId: string) => {
+    // Remove from pending invitations list
+    setPendingInvitations(prev => prev.filter(inv => (inv.id || inv._id) !== invitationId && inv._id !== invitationId));
+    // Refresh conversations to show the new one
+    await loadConversations();
+  };
+
+  const handleInvitationDeclined = (invitationId: string) => {
+    // Remove from pending invitations list
+    setPendingInvitations(prev => prev.filter(inv => (inv.id || inv._id) !== invitationId && inv._id !== invitationId));
+    // Just close the modal, no need to refresh conversations
+    setPendingInvitation(null);
+  };
+
   const toggleSidebar = () => {
     setShowSidebar(!showSidebar);
   };
@@ -371,53 +435,132 @@ const Index = () => {
   const currentConversation = conversations.find((c) => c.id === selectedConversation) || null;
 
   return (
-    <div className="flex h-screen w-full overflow-hidden">
-      {/* Sidebar - Conversations */}
-      {(showSidebar || !isMobile) && (
-        <div className={`${isMobile ? "absolute inset-0 z-10" : "w-80"} border-r border-border`}>
-          <SidebarConversations
-            conversations={conversations}
-            currentConversationId={selectedConversation}
-            onSelectConversation={setSelectedConversation}
-            onDeleteConversation={handleDeleteConversation}
-            onNewChat={handleNewChat}
-            onLogout={handleLogout}
-            isMobile={isMobile}
-            onToggleSidebar={toggleSidebar}
-          />
+    <div className="h-screen w-full overflow-hidden">
+      {isMobile ? (
+        // Mobile layout - no resizable panels
+        <div className="flex h-screen w-full overflow-hidden">
+          {/* Sidebar - Conversations */}
+          {(showSidebar || !isMobile) && (
+            <div className={`${isMobile ? "absolute inset-0 z-10" : "w-80"} border-r border-border`}>
+              <SidebarConversations
+                user={currentUser}
+                conversations={conversations}
+                currentConversationId={selectedConversation}
+                onSelectConversation={setSelectedConversation}
+                onDeleteConversation={handleDeleteConversation}
+                onNewChat={handleNewChat}
+                onLogout={handleLogout}
+                isMobile={isMobile}
+                onToggleSidebar={toggleSidebar}
+                pendingInvitationCount={pendingInvitations.length}
+                pendingInvitations={pendingInvitations}
+                onInvitationResponse={handleInvitationAccepted}
+              />
+            </div>
+          )}
+
+          {/* Main Chat Window */}
+          <div className="flex flex-1">
+            <div className="flex-1">
+              <ChatWindow
+                conversation={currentConversation}
+                messages={messages}
+                currentUserId={currentUser.id}
+                onSendMessage={handleSendMessage}
+                onTyping={handleTyping}
+                typingUsers={typingUsers}
+                isMobile={isMobile}
+                onToggleSidebar={toggleSidebar}
+              />
+            </div>
+
+            {/* Right Panel - Online Users (Desktop only) */}
+            {!isMobile && currentConversation && (
+              <div className="w-64">
+                <OnlineUsersPanel users={onlineUsers} conversation={currentConversation} />
+              </div>
+            )}
+          </div>
         </div>
+      ) : (
+        // Desktop layout - resizable panels
+        <ResizablePanelGroup direction="horizontal" className="h-screen">
+          {/* Sidebar - Conversations */}
+          {(showSidebar || !isMobile) && (
+            <>
+              <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
+                <SidebarConversations
+                  user={currentUser}
+                  conversations={conversations}
+                  currentConversationId={selectedConversation}
+                  onSelectConversation={setSelectedConversation}
+                  onDeleteConversation={handleDeleteConversation}
+                  onNewChat={handleNewChat}
+                  onLogout={handleLogout}
+                  isMobile={isMobile}
+                  onToggleSidebar={toggleSidebar}
+                  pendingInvitationCount={pendingInvitations.length}
+                  pendingInvitations={pendingInvitations}
+                  onInvitationResponse={handleInvitationAccepted}
+                />
+              </ResizablePanel>
+              <ResizableHandle withHandle />
+            </>
+          )}
+
+          {/* Main Chat Area */}
+          <ResizablePanel defaultSize={currentConversation ? 60 : 100} minSize={30}>
+            <ResizablePanelGroup direction="horizontal">
+              {/* Chat Window */}
+              <ResizablePanel defaultSize={currentConversation ? 75 : 100} minSize={50}>
+                <ChatWindow
+                  conversation={currentConversation}
+                  messages={messages}
+                  currentUserId={currentUser.id}
+                  onSendMessage={handleSendMessage}
+                  onTyping={handleTyping}
+                  typingUsers={typingUsers}
+                  isMobile={isMobile}
+                  onToggleSidebar={toggleSidebar}
+                />
+              </ResizablePanel>
+
+              {/* Right Panel - Online Users */}
+              {currentConversation && (
+                <>
+                  <ResizableHandle withHandle />
+                  <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
+                    <OnlineUsersPanel users={onlineUsers} conversation={currentConversation} />
+                  </ResizablePanel>
+                </>
+              )}
+            </ResizablePanelGroup>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       )}
 
-      {/* Main Chat Window */}
-      <div className="flex flex-1">
-        <div className="flex-1">
-          <ChatWindow
-            conversation={currentConversation}
-            messages={messages}
-            currentUserId={currentUser.id}
-            onSendMessage={handleSendMessage}
-            onTyping={handleTyping}
-            typingUsers={typingUsers}
-            isMobile={isMobile}
-            onToggleSidebar={toggleSidebar}
-          />
-        </div>
-
-        {/* Right Panel - Online Users (Desktop only) */}
-        {!isMobile && currentConversation && (
-          <div className="w-64">
-            <OnlineUsersPanel users={onlineUsers} conversation={currentConversation} />
-          </div>
-        )}
-      </div>
-
       <NewChatModal
-        token={localStorage.getItem("echo_access_token")}
+        token={token}
         show={showNewChat}
         currentUserId={currentUserId}
         onClose={() => setShowNewChat(false)}
         onCreated={handleCreated}
       />
+
+      {pendingInvitation && (
+        <InvitationModal
+          open={showInvitationModal}
+          invitationId={pendingInvitation.id || pendingInvitation._id}
+          inviterName={pendingInvitation.inviterName}
+          conversationName={pendingInvitation.conversationName}
+          onClose={() => {
+            setShowInvitationModal(false);
+            setPendingInvitation(null);
+          }}
+          onAccepted={handleInvitationAccepted}
+          onDeclined={handleInvitationDeclined}
+        />
+      )}
     </div>
   );
 };

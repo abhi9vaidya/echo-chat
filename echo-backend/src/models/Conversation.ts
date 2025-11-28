@@ -1,8 +1,10 @@
 import mongoose from "mongoose";
 
 const conversationSchema = new mongoose.Schema({
-  title: String,
+  name: { type: String, required: true },
+  type: { type: String, enum: ["direct", "group"], default: "group" },
   members: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   createdAt: { type: Date, default: Date.now },
 });
 

@@ -1,9 +1,11 @@
-import { Conversation } from "@/types";
+import { Conversation, User } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Menu, MoreVertical, Trash2 } from "lucide-react";
+import { Plus, Menu, MoreVertical, Trash2, MessageSquare, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { ProfileSection } from "@/components/ProfileSection";
+import UpdatesPanel from "@/components/UpdatesPanel";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 interface SidebarConversationsProps {
+  user?: User;
   conversations: Conversation[];
   currentConversationId: string | null;
   onSelectConversation: (id: string) => void;
@@ -25,9 +28,13 @@ interface SidebarConversationsProps {
   onLogout?: () => void;
   isMobile?: boolean;
   onToggleSidebar?: () => void;
+  pendingInvitationCount?: number;
+  pendingInvitations?: any[];
+  onInvitationResponse?: (invitationId: string, accepted: boolean) => void;
 }
 
 export const SidebarConversations = ({
+  user,
   conversations,
   currentConversationId,
   onSelectConversation,
@@ -36,11 +43,17 @@ export const SidebarConversations = ({
   onLogout,
   isMobile = false,
   onToggleSidebar,
+  pendingInvitationCount = 0,
+  pendingInvitations = [],
+  onInvitationResponse,
 }: SidebarConversationsProps) => {
   const [showMenu, setShowMenu] = useState(false);
 
   return (
     <div className="flex h-full flex-col bg-sidebar">
+      {/* Profile Section */}
+      {user && <ProfileSection user={user} onLogout={onLogout || (() => {})} pendingInvitationCount={pendingInvitationCount} />}
+
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border p-4">
         <h2 className="text-lg font-semibold text-sidebar-foreground">Chats</h2>
@@ -53,43 +66,6 @@ export const SidebarConversations = ({
           >
             <Plus className="h-4 w-4" />
           </Button>
-          <div className="relative">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setShowMenu(!showMenu)}
-              className="hover:bg-sidebar-hover"
-            >
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-            {showMenu && (
-              <div className="absolute right-0 mt-2 w-40 bg-white border rounded shadow z-50">
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <button
-                      className="block w-full text-left px-4 py-2 text-red-600 hover:bg-gray-100"
-                    >
-                      Logout
-                    </button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Are you sure you want to logout?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        You will be logged out of your account and redirected to the login page.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel onClick={() => setShowMenu(false)}>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => { onLogout?.(); setShowMenu(false); }} className="bg-red-600 hover:bg-red-700">
-                        Logout
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            )}
-          </div>
           {isMobile && onToggleSidebar && (
             <Button
               size="sm"
@@ -103,83 +79,123 @@ export const SidebarConversations = ({
         </div>
       </div>
 
+      {/* Updates/Invitations Section */}
+      {pendingInvitations.length > 0 && (
+        <div className="border-b border-border">
+          <div className="px-4 py-2 flex items-center gap-2 bg-blue-50 dark:bg-blue-950">
+            <Badge className="bg-blue-600 text-white">{pendingInvitations.length}</Badge>
+            <span className="text-sm font-semibold text-blue-900 dark:text-blue-100">New Invitations</span>
+          </div>
+          <UpdatesPanel 
+            pendingInvitations={pendingInvitations} 
+            onInvitationResponse={onInvitationResponse}
+          />
+        </div>
+      )}
+
       {/* Conversations List */}
       <div className="flex-1 overflow-y-auto">
-        {conversations.map((conv) => (
-          <div
-            key={conv.id}
-            className={cn(
-              "group relative border-b border-border transition-colors hover:bg-sidebar-hover",
-              currentConversationId === conv.id && "bg-accent"
-            )}
-          >
-            <button
-              onClick={() => onSelectConversation(conv.id)}
-              className="w-full p-4 text-left"
+        {conversations.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-100 to-purple-100 mb-4">
+              <MessageSquare className="h-8 w-8 text-gray-400" />
+            </div>
+            <h3 className="text-sm font-medium text-gray-900 mb-1">No conversations yet</h3>
+            <p className="text-xs text-gray-500 mb-4">Start a new chat to get started</p>
+            <Button
+              onClick={onNewChat}
+              size="sm"
+              className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-lg"
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 overflow-hidden">
-                  <div className="flex items-center gap-2">
-                    <h3 className="truncate font-medium text-sidebar-foreground">
-                      {conv.title}
-                    </h3>
-                    {conv.isOnline && (
-                      <span className="h-2 w-2 rounded-full bg-success" />
+              <Plus className="h-4 w-4 mr-2" />
+              New Chat
+            </Button>
+          </div>
+        ) : (
+          conversations.map((conv) => (
+            <div
+              key={conv.id}
+              className={cn(
+                "group relative border-b border-gray-100 transition-all duration-200 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50",
+                currentConversationId === conv.id && "bg-gradient-to-r from-blue-100 to-purple-100 border-blue-200"
+              )}
+            >
+              <button
+                onClick={() => onSelectConversation(conv.id)}
+                className="w-full p-4 text-left transition-all duration-200"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 flex-1 overflow-hidden">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-md flex-shrink-0">
+                      <MessageSquare className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="flex-1 overflow-hidden min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className={cn(
+                          "truncate font-medium transition-colors",
+                          currentConversationId === conv.id ? "text-blue-900" : "text-gray-900"
+                        )}>
+                          {conv.title}
+                        </h3>
+                        {conv.isOnline && (
+                          <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
+                        )}
+                      </div>
+                      {conv.lastMessage && (
+                        <p className="truncate text-sm text-gray-600">
+                          {conv.lastMessage}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    {conv.lastMessageTime && (
+                      <span className="text-xs text-gray-500">
+                        {conv.lastMessageTime}
+                      </span>
+                    )}
+                    {conv.unreadCount > 0 && (
+                      <Badge className="h-5 min-w-[20px] px-1.5 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs font-medium rounded-full">
+                        {conv.unreadCount}
+                      </Badge>
                     )}
                   </div>
-                  {conv.lastMessage && (
-                    <p className="truncate text-sm text-muted-foreground">
-                      {conv.lastMessage}
-                    </p>
-                  )}
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  {conv.lastMessageTime && (
-                    <span className="text-xs text-muted-foreground">
-                      {conv.lastMessageTime}
-                    </span>
-                  )}
-                  {conv.unreadCount > 0 && (
-                    <Badge variant="default" className="h-5 min-w-[20px] px-1">
-                      {conv.unreadCount}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            </button>
-            {onDeleteConversation && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-100 hover:text-red-600"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Conversation</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Are you sure you want to delete "{conv.title}"? This action cannot be undone and all messages will be permanently removed.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => onDeleteConversation(conv.id)}
-                      className="bg-red-600 hover:bg-red-700"
+              </button>
+              {onDeleteConversation && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-red-100 hover:text-red-600 rounded-lg"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      Delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
-          </div>
-        ))}
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="rounded-xl">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Conversation</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete "{conv.title}"? This action cannot be undone and all messages will be permanently removed.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel className="rounded-lg">Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => onDeleteConversation(conv.id)}
+                        className="bg-red-600 hover:bg-red-700 rounded-lg"
+                      >
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

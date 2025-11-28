@@ -52,12 +52,14 @@ export const getConversations = async (): Promise<Conversation[]> => {
   // Map DB shape to frontend Conversation if necessary
   return data.map((c: any) => ({
     id: c.id || c._id,
-    title: c.title || "",
+    title: c.name || c.title || "",
     lastMessage: c.lastMessage || "",
     lastMessageTime: c.lastMessageTime || "",
     unreadCount: c.unreadCount || 0,
     participants: c.participants || [],
     isOnline: c.isOnline || false,
+    createdAt: c.createdAt,
+    messageCount: c.messageCount,
   }));
 };
 
@@ -129,4 +131,40 @@ export async function deleteConversation(conversationId: string): Promise<void> 
   });
   if (!res.ok) throw new Error("Failed to delete conversation");
 }
+
+// Group invitation endpoints
+export async function createConversationWithInvites(name: string, invitees: string[]) {
+  const res = await fetch(`${BASE_URL}/api/conversations`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+    },
+    body: JSON.stringify({ name, invitees }),
+  });
+  if (!res.ok) throw new Error("Failed to create conversation");
+  return res.json();
+}
+
+export async function getPendingInvitations() {
+  const res = await fetch(`${BASE_URL}/api/invitations/pending`, {
+    headers: { ...authHeaders() },
+  });
+  if (!res.ok) throw new Error("Failed to fetch pending invitations");
+  return res.json();
+}
+
+export async function respondToInvitation(invitationId: string, accept: boolean) {
+  const res = await fetch(`${BASE_URL}/api/invitations/${invitationId}/respond`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+    },
+    body: JSON.stringify({ accept }),
+  });
+  if (!res.ok) throw new Error("Failed to respond to invitation");
+  return res.json();
+}
+
 

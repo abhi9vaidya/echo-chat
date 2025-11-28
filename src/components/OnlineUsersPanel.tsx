@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { User, Conversation } from "@/types";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface OnlineUsersPanelProps {
   users: User[];
@@ -7,6 +9,7 @@ interface OnlineUsersPanelProps {
 }
 
 export const OnlineUsersPanel = ({ users, conversation }: OnlineUsersPanelProps) => {
+  const [showMembersDialog, setShowMembersDialog] = useState(false);
   const getInitials = (name: string) => {
     return name
       .split(" ")
@@ -48,13 +51,55 @@ export const OnlineUsersPanel = ({ users, conversation }: OnlineUsersPanelProps)
             {conversation.createdAt && (
               <p>Created: {new Date(conversation.createdAt).toLocaleDateString()}</p>
             )}
-            <p>Members: {conversation.participants.length}</p>
+            <button
+              onClick={() => setShowMembersDialog(true)}
+              className="text-blue-600 hover:text-blue-700 hover:underline cursor-pointer transition-colors"
+            >
+              Members: {conversation.participants.length}
+            </button>
             {conversation.messageCount !== undefined && (
               <p>Messages: {conversation.messageCount}</p>
             )}
           </div>
         </div>
       </div>
+
+      {/* Members Dialog */}
+      <Dialog open={showMembersDialog} onOpenChange={setShowMembersDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Chat Members ({conversation.participants.length})</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {conversation.participants && conversation.participants.length > 0 ? (
+              conversation.participants.map((member) => (
+                <div
+                  key={member.id}
+                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors"
+                >
+                  <Avatar className="h-10 w-10">
+                    <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-semibold">
+                      {getInitials(member.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <div className="font-medium text-foreground">{member.name}</div>
+                    <div className="text-xs text-muted-foreground">{member.email}</div>
+                  </div>
+                  {member.isOnline && (
+                    <div className="flex items-center gap-1">
+                      <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                      <span className="text-xs text-green-600">Online</span>
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">No members found</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
