@@ -18,6 +18,38 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
+// Utility function to format conversation timestamps
+const formatConversationTime = (timeString: string): string => {
+  if (!timeString || timeString === "Just now") return timeString;
+
+  try {
+    const date = new Date(timeString);
+    if (isNaN(date.getTime())) return timeString;
+
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m`;
+    if (diffHours < 24) return `${diffHours}h`;
+
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) {
+      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      return dayNames[date.getDay()];
+    }
+
+    // For older messages, show date
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return `${monthNames[date.getMonth()]} ${date.getDate()}`;
+  } catch {
+    return timeString;
+  }
+};
+
 interface SidebarConversationsProps {
   user?: User;
   conversations: Conversation[];
@@ -141,6 +173,11 @@ export const SidebarConversations = ({
                           <span className="h-2 w-2 rounded-full bg-success animate-pulse flex-shrink-0" />
                         )}
                       </div>
+                      {conv.lastMessageTime && (
+                        <p className="text-xs text-muted-foreground mb-1">
+                          {formatConversationTime(conv.lastMessageTime)}
+                        </p>
+                      )}
                       {conv.lastMessage && (
                         <p className="truncate text-sm text-muted-foreground">
                           {conv.lastMessage}
@@ -149,11 +186,6 @@ export const SidebarConversations = ({
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                    {conv.lastMessageTime && (
-                      <span className="text-xs text-muted-foreground">
-                        {conv.lastMessageTime}
-                      </span>
-                    )}
                     {conv.unreadCount > 0 && (
                       <Badge className="h-5 min-w-[20px] px-1.5 bg-primary text-primary-foreground text-xs font-medium rounded-full">
                         {conv.unreadCount}

@@ -9,6 +9,7 @@ type MemberAddedCallback = (data: any) => void;
 type OnlineUsersCallback = (users: any[]) => void;
 type UserConnectedCallback = (user: any) => void;
 type UserDisconnectedCallback = (user: any) => void;
+type MessageCountCallback = (data: { conversationId: string; count: number }) => void;
 
 class SocketService {
   private socket: Socket | null = null;
@@ -20,6 +21,7 @@ class SocketService {
   private onlineUsersCallbacks: OnlineUsersCallback[] = [];
   private userConnectedCallbacks: UserConnectedCallback[] = [];
   private userDisconnectedCallbacks: UserDisconnectedCallback[] = [];
+  private messageCountCallbacks: MessageCountCallback[] = [];
   private isInitialized = false;
   private currentToken: string | null = null;
   private currentUserInfo: { id: string; name?: string; email?: string } | null = null;
@@ -56,6 +58,10 @@ class SocketService {
 
   onUserDisconnected(cb: UserDisconnectedCallback) {
     this.userDisconnectedCallbacks.push(cb);
+  }
+
+  onMessageCount(cb: MessageCountCallback) {
+    this.messageCountCallbacks.push(cb);
   }
 
   // Initialize global socket connection (call once after login)
@@ -153,6 +159,11 @@ class SocketService {
       this.userDisconnectedCallbacks.forEach((cb) => cb(user));
     });
 
+    this.socket.on("message_count_update", (data: { conversationId: string; count: number }) => {
+      console.log("Received message count update:", data);
+      this.messageCountCallbacks.forEach((cb) => cb(data));
+    });
+
     this.isInitialized = true;
   }
 
@@ -172,6 +183,13 @@ class SocketService {
 
     // Join the conversation room
     this.joinConversation(conversationId);
+  }
+
+  // Join all conversations for real-time updates
+  joinAllConversations(conversationIds: string[]) {
+    conversationIds.forEach((id) => {
+      this.joinConversation(id);
+    });
   }
 
   disconnect() {

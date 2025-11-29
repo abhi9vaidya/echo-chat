@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AuthForm } from "@/components/AuthForm";
 import { SidebarConversations } from "@/components/SidebarConversations";
 import { ChatWindow } from "@/components/ChatWindow";
@@ -28,6 +28,10 @@ const Index = () => {
   const [showInvitationModal, setShowInvitationModal] = useState(false);
   const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
   const { toast } = useToast();
+  const typingTimeoutsRef = useRef<Map<string, any>>(new Map());
+  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const refreshRetryCountRef = useRef(0);
+  const isUserActiveRef = useRef(true);
 
   const token = localStorage.getItem("echo_access_token");
   const currentUserId = currentUser?.id || null;
@@ -46,45 +50,88 @@ const Index = () => {
   useEffect(() => {
     console.log("[SOCKET] Registering all callbacks...");
     
-    // Message handler
-    const msgHandler = (msg: any) => {
-      console.log("[SOCKET] Message received:", msg);
-      setMessages((prev) => {
-        if (prev.find((m) => String(m._id || m.id) === String(msg._id || msg.id))) return prev;
-        const cleaned = prev.filter(
-          (m) =>
-            !(
-              m._temp &&
-              m.content === msg.content &&
-              String(m.senderId) === String(msg.senderId)
-            )
-        );
-        return [...cleaned, msg];
-      });
-
+    // Message count handler
+    const messageCountHandler = (data: { conversationId: string; count: number }) => {
+      console.log("[SOCKET] Message count update received:", data);
       setConversations((prev) =>
         prev.map((conv) =>
-          conv.id === msg.conversationId
-            ? { ...conv, messageCount: (conv.messageCount || 0) + 1 }
+          conv.id === data.conversationId
+            ? { ...conv, messageCount: data.count }
             : conv
         )
       );
     };
 
+    // Message handler
+    const msgHandler = (msg: any) => {
+      console.log("[SOCKET] Message received:", msg);
+      let messageWasAdded = false;
+
+      // Only add message to messages array if it belongs to the selected conversation
+      if (msg.conversationId === selectedConversation) {
+        setMessages((prev) => {
+          if (prev.find((m) => String(m._id || m.id) === String(msg._id || msg.id))) return prev;
+          const cleaned = prev.filter(
+            (m) =>
+              !(
+                m._temp &&
+                m.content === msg.content &&
+                String(m.senderId) === String(msg.senderId)
+              )
+          );
+          messageWasAdded = true;
+          return [...cleaned, msg];
+        });
+      }
+
+      // Clear typing indicator for the user who sent the message
+      const senderName = msg.senderName;
+      if (senderName) {
+        const existingTimeout = typingTimeoutsRef.current.get(senderName);
+        if (existingTimeout) {
+          clearTimeout(existingTimeout);
+          typingTimeoutsRef.current.delete(senderName);
+        }
+        setTypingUsers(prev => prev.filter(name => name !== senderName));
+      }
+
+      // Only increment count if the message is not from the current user (to avoid double-counting user's own messages)
+      if (String(msg.senderId) !== String(currentUser?.id)) {
+        setConversations((prev) =>
+          prev.map((conv) =>
+            conv.id === msg.conversationId
+              ? { ...conv, messageCount: (conv.messageCount || 0) + 1 }
+              : conv
+          )
+        );
+      }
+    };
+
     // Typing handler
-    const typingHandler = (data: { userId: string; conversationId: string }) => {
+    const typingHandler = (data: { userId: string; userName: string; conversationId: string }) => {
       console.log("[SOCKET] Typing received:", data);
-      if (data.conversationId === selectedConversation) {
-        const userName = onlineUsers.find(u => u.id === data.userId)?.name || `User ${data.userId}`;
+      if (data.conversationId === selectedConversation && String(data.userId) !== String(currentUser?.id)) {
+        const userName = data.userName;
         setTypingUsers(prev => {
           if (!prev.includes(userName)) {
             return [...prev, userName];
           }
           return prev;
         });
-        setTimeout(() => {
+
+        // Clear existing timeout for this user
+        const existingTimeout = typingTimeoutsRef.current.get(userName);
+        if (existingTimeout) {
+          clearTimeout(existingTimeout);
+        }
+
+        // Set new timeout to remove typing indicator after 3 seconds
+        const timeoutId = setTimeout(() => {
           setTypingUsers(prev => prev.filter(name => name !== userName));
+          typingTimeoutsRef.current.delete(userName);
         }, 3000);
+
+        typingTimeoutsRef.current.set(userName, timeoutId);
       }
     };
 
@@ -122,6 +169,8 @@ const Index = () => {
     };
 
     // Register all callbacks FIRST
+    console.log("[SOCKET] Calling socketService.onMessageCount...");
+    socketService.onMessageCount(messageCountHandler);
     console.log("[SOCKET] Calling socketService.onMessage...");
     socketService.onMessage(msgHandler);
     console.log("[SOCKET] Calling socketService.onTyping...");
@@ -132,7 +181,7 @@ const Index = () => {
     socketService.onNotification(notificationHandler);
     console.log("[SOCKET] All callbacks registered");
 
-  }, [toast]);
+  }, [toast, selectedConversation, currentUser]);
 
   // Initialize socket globally once after login (SECOND - after callbacks are registered)
   useEffect(() => {
@@ -198,6 +247,81 @@ const Index = () => {
     }
   }, [currentUser]);
 
+  // User activity tracking and smart refresh
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // Track user activity
+    const handleUserActivity = () => {
+      isUserActiveRef.current = true;
+      // Reset retry count on user activity
+      refreshRetryCountRef.current = 0;
+    };
+
+    // Listen for user activity events
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    events.forEach(event => {
+      document.addEventListener(event, handleUserActivity, { passive: true });
+    });
+
+    // Mark user as inactive after 5 minutes of no activity
+    const inactivityTimer = setInterval(() => {
+      isUserActiveRef.current = false;
+    }, 5 * 60 * 1000); // 5 minutes
+
+    // Smart refresh function with exponential backoff
+    const smartRefresh = async () => {
+      if (!isUserActiveRef.current) {
+        // Skip refresh if user is inactive
+        return;
+      }
+
+      try {
+        await loadConversations();
+        // Reset retry count on success
+        refreshRetryCountRef.current = 0;
+      } catch (error) {
+        console.warn("Conversation refresh failed:", error);
+        // Increment retry count for exponential backoff
+        refreshRetryCountRef.current += 1;
+      }
+    };
+
+    // Start initial refresh
+    smartRefresh();
+
+    // Set up interval with exponential backoff for failed requests
+    const scheduleNextRefresh = () => {
+      if (refreshIntervalRef.current) {
+        clearTimeout(refreshIntervalRef.current);
+      }
+
+      // Base interval: 2 seconds when user is active, longer when inactive
+      const baseInterval = isUserActiveRef.current ? 2000 : 30000; // 2s active, 30s inactive
+
+      // Apply exponential backoff for failed requests
+      const backoffMultiplier = Math.pow(2, Math.min(refreshRetryCountRef.current, 5)); // Max 32x multiplier
+      const interval = baseInterval * backoffMultiplier;
+
+      refreshIntervalRef.current = setTimeout(() => {
+        smartRefresh();
+        scheduleNextRefresh(); // Schedule next refresh
+      }, interval);
+    };
+
+    scheduleNextRefresh();
+
+    return () => {
+      events.forEach(event => {
+        document.removeEventListener(event, handleUserActivity);
+      });
+      clearInterval(inactivityTimer);
+      if (refreshIntervalRef.current) {
+        clearTimeout(refreshIntervalRef.current);
+      }
+    };
+  }, [currentUser]);
+
   // Load messages when conversation changes
   useEffect(() => {
     if (selectedConversation) {
@@ -255,9 +379,15 @@ const Index = () => {
     try {
       const convs = await getConversations();
       setConversations(convs);
-      
+
+      // Join all conversation rooms for real-time message updates
+      if (token && currentUser) {
+        const conversationIds = convs.map((conv: any) => conv.id);
+        socketService.joinAllConversations(conversationIds);
+      }
+
       // Auto-select first conversation
-     
+
       if (convs.length > 0 && !selectedConversation) {
         setSelectedConversation(convs[0].id);
       }
@@ -274,6 +404,7 @@ const Index = () => {
     try {
       const msgs = await getMessages(conversationId);
       setMessages(msgs);
+      // Don't update message count here - rely on server counts and socket increments
     } catch (error: any) {
       toast({
         title: "Error",
@@ -285,6 +416,14 @@ const Index = () => {
 
   const handleSendMessage = async (content: string) => {
     if (!selectedConversation || !currentUser) return;
+
+    // Clear typing indicator for current user
+    const currentUserTimeout = typingTimeoutsRef.current.get(currentUser.name);
+    if (currentUserTimeout) {
+      clearTimeout(currentUserTimeout);
+      typingTimeoutsRef.current.delete(currentUser.name);
+      setTypingUsers(prev => prev.filter(name => name !== currentUser.name));
+    }
 
     // Create optimistic message
     const optimisticMessage = {
@@ -300,7 +439,7 @@ const Index = () => {
     // Add optimistic message immediately
     setMessages((prev) => [...prev, optimisticMessage]);
 
-    // Update conversation's last message only (don't increment count - socket handler will do it)
+    // Update conversation's last message optimistically (count will be updated when message is received)
     setConversations((prev) =>
       prev.map((conv) =>
         conv.id === selectedConversation
@@ -371,6 +510,7 @@ const Index = () => {
     try {
       const msgs = await getMessages(id);
       setMessages(msgs);
+      // Don't update message count here - rely on server counts and socket increments
     } catch (error: any) {
       console.error("Failed to load messages for new conversation:", error);
       setMessages([]);

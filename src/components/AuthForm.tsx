@@ -60,7 +60,7 @@ export const AuthForm = ({ onAuth }: AuthFormProps) => {
             Echo
           </CardTitle>
           <CardDescription className="text-base text-gray-600">
-            Chat with your classmates in real time
+            Connect and chat in real time
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -94,7 +94,7 @@ export const AuthForm = ({ onAuth }: AuthFormProps) => {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="student@university.edu"
+                  placeholder="your.email@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={loading}
@@ -137,9 +137,8 @@ export const AuthForm = ({ onAuth }: AuthFormProps) => {
                   Loading...
                 </div>
               ) : (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center">
                   {isSignup ? "Create Account" : "Sign In"}
-                  <Sparkles className="h-4 w-4" />
                 </div>
               )}
             </Button>

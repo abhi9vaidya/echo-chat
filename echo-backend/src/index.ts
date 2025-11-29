@@ -71,7 +71,6 @@ io.on("connection", (socket) => {
   socket.on("join_conversation", (conversationId: string) => {
     const roomName = String(conversationId);
     socket.join(roomName);
-    socket.join(`conversation:${roomName}`);
     console.log(`User ${userId} joined conversation ${roomName}`);
   });
 
@@ -104,10 +103,16 @@ io.on("connection", (socket) => {
         timestamp: (populated?.createdAt || saved.createdAt).toISOString(),
       };
 
-      // Emit to conversation room (multiple formats for compatibility)
+      // Emit to conversation room
       io.to(conversationId).emit("new_message", emitMsg);
-      io.to(`conversation:${conversationId}`).emit("new_message", emitMsg);
-      
+
+      // Emit message count update to all users in the conversation room
+      const messageCount = await Message.countDocuments({ conversationId });
+      io.to(conversationId).emit("message_count_update", {
+        conversationId,
+        count: messageCount
+      });
+
       console.log(`Message emitted to room ${conversationId}:`, emitMsg);
     } catch (err) {
       console.error("send_message error:", err);

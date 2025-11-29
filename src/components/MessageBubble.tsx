@@ -51,9 +51,38 @@ const MessageBubble = ({ message, currentUserId }: MessageBubbleProps) => {
     try {
       const d = typeof created === "string" || typeof created === "number" ? new Date(created) : created;
       if (isNaN(d.getTime())) return "";
-      const hh = String(d.getHours()).padStart(2, "0");
-      const mm = String(d.getMinutes()).padStart(2, "0");
-      return `${hh}:${mm}`;
+
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const messageDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+      // Format time in 12-hour format
+      const hours = d.getHours();
+      const minutes = String(d.getMinutes()).padStart(2, "0");
+      const ampm = hours >= 12 ? "PM" : "AM";
+      const displayHours = hours % 12 || 12;
+      const timeStr = `${displayHours}:${minutes} ${ampm}`;
+
+      // Determine date part
+      const diffDays = Math.floor((today.getTime() - messageDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 0) {
+        // Today - just show time
+        return timeStr;
+      } else if (diffDays === 1) {
+        // Yesterday
+        return `Yesterday ${timeStr}`;
+      } else if (diffDays < 7) {
+        // Within this week - show day name
+        const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        return `${dayNames[d.getDay()]} ${timeStr}`;
+      } else {
+        // Older - show date
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const month = monthNames[d.getMonth()];
+        const day = d.getDate();
+        return `${month} ${day} ${timeStr}`;
+      }
     } catch {
       return "";
     }
