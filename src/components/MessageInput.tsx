@@ -67,14 +67,18 @@ export const MessageInput = ({
             onKeyDown={handleKeyDown}
             placeholder="Type a message..."
             disabled={disabled}
-            className="pr-12 h-11 rounded-xl backdrop-blur-sm"
+            className="pr-12 h-11 rounded-xl backdrop-blur-sm touch-manipulation"
+            autoComplete="off"
+            autoCorrect="on"
+            autoCapitalize="sentences"
+            spellCheck="true"
           />
 
         </div>
         <Button
           type="submit"
           disabled={disabled || !value.trim()}
-          className="h-11 w-11 p-0 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="h-11 w-11 p-0 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation active:scale-95"
         >
           <Send className="h-5 w-5" />
         </Button>

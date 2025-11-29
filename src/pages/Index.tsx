@@ -11,6 +11,7 @@ import { login, signup, getConversations, getMessages, sendMessage as apiSendMes
 import { socketService } from "@/services/socket";
 import MessageBubble from "@/components/MessageBubble";
 import { useToast } from "@/hooks/use-toast";
+import { useMobile } from "@/hooks/use-mobile";
 
 const Index = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -22,7 +23,6 @@ const Index = () => {
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<User[]>([]);
   const [showSidebar, setShowSidebar] = useState(true);
-  const [isMobile, setIsMobile] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
   const [pendingInvitation, setPendingInvitation] = useState<any | null>(null);
   const [showInvitationModal, setShowInvitationModal] = useState(false);
@@ -35,16 +35,7 @@ const Index = () => {
 
   const token = localStorage.getItem("echo_access_token");
   const currentUserId = currentUser?.id || null;
-
-  // Check if mobile
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
+  const isMobile = useMobile();
 
   // Register all socket listeners ONCE on component mount (FIRST - before socket init)
   useEffect(() => {

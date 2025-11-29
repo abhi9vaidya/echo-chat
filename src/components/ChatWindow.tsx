@@ -73,7 +73,7 @@ export const ChatWindow = ({
             size="sm"
             variant="ghost"
             onClick={onToggleSidebar}
-            className="hover:bg-accent"
+            className="hover:bg-accent touch-manipulation active:scale-95"
           >
             <Menu className="h-4 w-4" />
           </Button>

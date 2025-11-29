@@ -94,7 +94,7 @@ export const SidebarConversations = ({
             size="sm"
             variant="ghost"
             onClick={onNewChat}
-            className="hover:bg-sidebar-hover"
+            className="hover:bg-sidebar-hover touch-manipulation active:scale-95"
           >
             <Plus className="h-4 w-4" />
           </Button>
@@ -103,7 +103,7 @@ export const SidebarConversations = ({
               size="sm"
               variant="ghost"
               onClick={onToggleSidebar}
-              className="hover:bg-sidebar-hover"
+              className="hover:bg-sidebar-hover touch-manipulation active:scale-95"
             >
               <Menu className="h-4 w-4" />
             </Button>
@@ -137,7 +137,7 @@ export const SidebarConversations = ({
             <Button
               onClick={onNewChat}
               size="sm"
-              className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg touch-manipulation active:scale-95"
             >
               <Plus className="h-4 w-4 mr-2" />
               New Chat
@@ -154,7 +154,7 @@ export const SidebarConversations = ({
             >
               <button
                 onClick={() => onSelectConversation(conv.id)}
-                className="w-full p-4 text-left transition-all duration-200"
+                className="w-full p-4 text-left transition-all duration-200 touch-manipulation active:scale-[0.98]"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3 flex-1 overflow-hidden">
@@ -200,7 +200,7 @@ export const SidebarConversations = ({
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-destructive/10 hover:text-destructive rounded-lg"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-destructive/10 hover:text-destructive rounded-lg touch-manipulation active:scale-95"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Trash2 className="h-4 w-4" />
