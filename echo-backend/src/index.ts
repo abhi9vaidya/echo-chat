@@ -13,19 +13,38 @@ import { Message } from "./models/Message";
 import { User } from "./models/User";
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: [
+    "https://echochat-v1.vercel.app",
+    "https://echochat-hazel.vercel.app",
+    "http://localhost:5173"
+  ],
+  credentials: true
+}));
 app.use(express.json());
 
 app.use("/auth", authRoutes);
 app.use("/api", chatRoutes);
 
 const server = http.createServer(app);
-const io = new Server(server, { 
-  cors: { origin: "*" }
+const io = new Server(server, {
+  cors: {
+    origin: [
+      "https://echochat-v1.vercel.app",
+      "https://echochat-hazel.vercel.app",
+      "http://localhost:5173"
+    ]
+  }
 });
 
 const onlineUsers = new Map<string, boolean>();
 const userInfo = new Map<string, { name: string; email: string }>();
+
+const MONGO_URI = process.env.MONGO_URI;
+if (!MONGO_URI) {
+  console.error("FATAL: MONGO_URI is not set. Set it in environment variables.");
+  process.exit(1);
+}
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 
@@ -142,7 +161,7 @@ io.on("connection", (socket) => {
 });
 
 mongoose
-  .connect(process.env.MONGO_URL || "mongodb://localhost:27017/echo-chat")
+  .connect(MONGO_URI)
   .then(() => {
     const port = Number(process.env.PORT || 4000);
     server.listen(port, () => console.log(`Backend on http://localhost:${port}`));

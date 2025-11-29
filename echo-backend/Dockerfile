@@ -4,6 +4,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
+# ensure tsc is executable then run build
+RUN chmod +x ./node_modules/.bin/tsc || true
 RUN npm run build
 
 # Stage 2 — runtime
